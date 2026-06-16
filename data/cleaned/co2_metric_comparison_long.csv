@@ -1,0 +1,37 @@
+country,metric,value,unit,value_label,rank
+China,Annual territorial CO2,12.1720087890625,Gt CO2,12.2,1
+China,Cumulative territorial CO2,272.798,Gt CO2,272.8,3
+China,Territorial CO2 per capita,8.55626106262207,tonnes/person,8.6,4
+China,Consumption CO2 per capita,7.631899833679199,tonnes/person,7.6,6
+United States,Annual territorial CO2,4.91840673828125,Gt CO2,4.9,2
+United States,Cumulative territorial CO2,429.96246875,Gt CO2,430.0,1
+United States,Territorial CO2 per capita,14.319450378417969,tonnes/person,14.3,1
+United States,Consumption CO2 per capita,15.81373405456543,tonnes/person,15.8,2
+India,Annual territorial CO2,3.06275634765625,Gt CO2,3.1,3
+India,Cumulative territorial CO2,62.87905078125,Gt CO2,62.9,8
+India,Territorial CO2 per capita,2.1297693252563477,tonnes/person,2.1,9
+India,Consumption CO2 per capita,1.768492579460144,tonnes/person,1.8,9
+European Union (27),Annual territorial CO2,2.48499658203125,Gt CO2,2.5,4
+European Union (27),Cumulative territorial CO2,298.4756875,Gt CO2,298.5,2
+European Union (27),Territorial CO2 per capita,5.514156818389893,tonnes/person,5.5,7
+European Union (27),Consumption CO2 per capita,7.327513694763184,tonnes/person,7.3,7
+Russia,Annual territorial CO2,1.7331346435546875,Gt CO2,1.7,5
+Russia,Cumulative territorial CO2,121.027703125,Gt CO2,121.0,4
+Russia,Territorial CO2 per capita,11.91645050048828,tonnes/person,11.9,2
+Russia,Consumption CO2 per capita,9.667057037353516,tonnes/person,9.7,3
+Japan,Annual territorial CO2,0.98691015625,Gt CO2,1.0,6
+Japan,Cumulative territorial CO2,68.65040625,Gt CO2,68.7,7
+Japan,Territorial CO2 per capita,7.935214519500732,tonnes/person,7.9,5
+Japan,Consumption CO2 per capita,9.1846160888671875,tonnes/person,9.2,4
+Germany,Annual territorial CO2,0.5937659912109375,Gt CO2,0.6,7
+Germany,Cumulative territorial CO2,94.5633515625,Gt CO2,94.6,5
+Germany,Territorial CO2 per capita,7.022808074951172,tonnes/person,7.0,6
+Germany,Consumption CO2 per capita,9.089262962341309,tonnes/person,9.1,5
+United Kingdom,Annual territorial CO2,0.30782614135742187,Gt CO2,0.3,8
+United Kingdom,Cumulative territorial CO2,79.766546875,Gt CO2,79.8,6
+United Kingdom,Territorial CO2 per capita,4.481841087341309,tonnes/person,4.5,8
+United Kingdom,Consumption CO2 per capita,7.092002868652344,tonnes/person,7.1,8
+Singapore,Annual territorial CO2,0.0510676155090332,Gt CO2,0.1,9
+Singapore,Cumulative territorial CO2,2.193785888671875,Gt CO2,2.2,9
+Singapore,Territorial CO2 per capita,8.821352005004883,tonnes/person,8.8,3
+Singapore,Consumption CO2 per capita,32.2892951965332,tonnes/person,32.3,1

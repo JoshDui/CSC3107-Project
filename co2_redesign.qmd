@@ -1,0 +1,242 @@
+---
+title: "CO2 Emissions Responsibility Redesign"
+author: "CSC3107 Team Project"
+date: "2026-06-16"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Design focus
+
+This redesign is based on the Reuters Graphics article "Who is the biggest polluter of carbon dioxide?" The aim is not to make a general climate-change poster. The aim is to show that national responsibility changes depending on how CO2 emissions are measured.
+
+The working design question is:
+
+> Who appears most responsible for CO2 emissions under annual, cumulative, per-capita, and consumption-based accounting?
+
+## Data import and cleaning
+
+```{r}
+library(tidyverse)
+library(scales)
+
+raw_path <- file.path("data", "raw", "owid-co2-data.csv")
+cleaned_dir <- file.path("data", "cleaned")
+figures_dir <- "figures"
+
+dir.create(cleaned_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+stopifnot(file.exists(raw_path))
+
+owid <- read_csv(raw_path, show_col_types = FALSE)
+
+available_countries <- unique(owid$country)
+eu_label <- intersect(
+  c("European Union (27)", "EU-27", "European Union"),
+  available_countries
+)[1]
+
+comparison_countries <- c(
+  "China",
+  "United States",
+  "India",
+  eu_label,
+  "Russia",
+  "Japan",
+  "Germany",
+  "United Kingdom",
+  "Singapore"
+)
+
+comparison_countries <- comparison_countries[!is.na(comparison_countries)]
+
+missing_countries <- setdiff(comparison_countries, available_countries)
+if (length(missing_countries) > 0) {
+  stop("Missing expected country labels: ", paste(missing_countries, collapse = ", "))
+}
+
+metric_columns <- c(
+  "co2",
+  "cumulative_co2",
+  "co2_per_capita",
+  "consumption_co2_per_capita"
+)
+
+analysis_year <- owid |>
+  filter(country %in% comparison_countries) |>
+  filter(if_all(all_of(metric_columns), ~ !is.na(.x))) |>
+  count(year, name = "complete_countries") |>
+  filter(complete_countries == length(comparison_countries)) |>
+  summarise(year = max(year)) |>
+  pull(year)
+
+if (length(analysis_year) == 0 || is.na(analysis_year)) {
+  stop("No single year has all required metrics for the selected countries.")
+}
+
+cleaned <- owid |>
+  filter(country %in% comparison_countries, year == analysis_year) |>
+  select(
+    country,
+    year,
+    iso_code,
+    population,
+    co2,
+    co2_per_capita,
+    cumulative_co2,
+    consumption_co2,
+    consumption_co2_per_capita,
+    share_global_co2,
+    share_global_cumulative_co2
+  ) |>
+  arrange(match(country, comparison_countries))
+
+write_csv(cleaned, file.path(cleaned_dir, "co2_selected_countries.csv"))
+
+analysis_year
+```
+
+The selected analysis year is `r analysis_year`, because it is the latest year where all selected comparison countries have complete values for the four required metrics.
+
+## Transform for visualization
+
+```{r}
+metric_levels <- c(
+  "Annual territorial CO2",
+  "Cumulative territorial CO2",
+  "Territorial CO2 per capita",
+  "Consumption CO2 per capita"
+)
+
+plot_data <- cleaned |>
+  transmute(
+    country,
+    `Annual territorial CO2` = co2 / 1000,
+    `Cumulative territorial CO2` = cumulative_co2 / 1000,
+    `Territorial CO2 per capita` = co2_per_capita,
+    `Consumption CO2 per capita` = consumption_co2_per_capita
+  ) |>
+  pivot_longer(
+    cols = -country,
+    names_to = "metric",
+    values_to = "value"
+  ) |>
+  mutate(
+    metric = factor(metric, levels = metric_levels),
+    unit = if_else(str_detect(as.character(metric), "per capita"), "tonnes/person", "Gt CO2"),
+    value_label = case_when(
+      unit == "Gt CO2" ~ number(value, accuracy = 0.1),
+      TRUE ~ number(value, accuracy = 0.1)
+    )
+  ) |>
+  group_by(metric) |>
+  mutate(rank = min_rank(desc(value))) |>
+  ungroup()
+
+write_csv(plot_data, file.path(cleaned_dir, "co2_metric_comparison_long.csv"))
+
+plot_data |>
+  arrange(metric, rank) |>
+  select(metric, rank, country, value, unit)
+```
+
+## Draft redesign
+
+```{r}
+country_palette <- c(
+  "China" = "#c7512f",
+  "United States" = "#2f6f9f",
+  "India" = "#7a5ea8",
+  "European Union (27)" = "#4d8c57",
+  "EU-27" = "#4d8c57",
+  "European Union" = "#4d8c57",
+  "Russia" = "#8f5d46",
+  "Japan" = "#d08c2f",
+  "Germany" = "#6b6b6b",
+  "United Kingdom" = "#3f7f7a",
+  "Singapore" = "#b64d7a"
+)
+
+country_levels <- rev(comparison_countries)
+
+small_multiple_chart <- ggplot(
+  plot_data,
+  aes(
+    x = value,
+    y = factor(country, levels = country_levels),
+    fill = country
+  )
+) +
+  geom_col(width = 0.68) +
+  geom_text(
+    aes(label = value_label),
+    hjust = -0.08,
+    size = 3.1,
+    color = "#222222"
+  ) +
+  facet_wrap(~ metric, scales = "free_x", ncol = 2) +
+  scale_fill_manual(values = country_palette, guide = "none") +
+  scale_x_continuous(
+    labels = label_number(accuracy = 1),
+    expand = expansion(mult = c(0, 0.22))
+  ) +
+  labs(
+    title = "The biggest polluter changes depending on the metric",
+    subtitle = paste0(
+      "Selected countries, ",
+      analysis_year,
+      ". Annual and cumulative emissions are shown in gigatonnes CO2; per-capita measures are tonnes per person."
+    ),
+    x = NULL,
+    y = NULL,
+    caption = "Data: Our World in Data CO2 and Greenhouse Gas Emissions dataset. Reuters graphic source also cites Our World in Data."
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 10, color = "#444444"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 11),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 8),
+    plot.caption = element_text(size = 8, color = "#555555"),
+    panel.spacing = unit(1.2, "lines")
+  ) +
+  coord_cartesian(clip = "off")
+
+small_multiple_chart
+
+ggsave(
+  filename = file.path(figures_dir, "co2_metric_small_multiples.png"),
+  plot = small_multiple_chart,
+  width = 12,
+  height = 8,
+  dpi = 300
+)
+```
+
+## Starter interpretation
+
+The first chart draft is meant to support a narrow poster argument:
+
+- Annual territorial emissions emphasize current industrial scale.
+- Cumulative territorial emissions emphasize historical responsibility.
+- Territorial per-capita emissions emphasize average domestic emissions intensity.
+- Consumption-based per-capita emissions shift attention toward demand and trade.
+
+The poster should explain that none of these metrics is a neutral single answer. Each one answers a different policy question.
+
+## Next design tasks
+
+- Decide whether to keep the EU aggregate or remove it to avoid mixing countries and regions.
+- Add concise annotations beside each panel.
+- Add a small supporting rank-change chart only if the poster has enough space.
+- Place the original Reuters graphic beside a short critique of the Sankey and rotated-label design.

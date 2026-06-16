@@ -1,0 +1,11 @@
+# Local R/Quarto state
+.Rhistory
+.RData
+.Rproj.user/
+.quarto/
+*_cache/
+*_files/
+*.knit.md
+
+# Exceeds GitHub's 100 MiB per-file limit. The CSV is the tracked raw dataset.
+data/raw/owid-co2-data.json
