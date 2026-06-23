@@ -20,6 +20,25 @@ The working design question is:
 
 > Who appears most responsible for CO2 emissions under annual, cumulative, per-capita, and consumption-based accounting?
 
+## Critique of the original
+
+![Original Reuters Graphics chart (source: see references/source_notes.md). The poster uses a tighter single-panel crop of this same graphic for space reasons.](figures/co2_full_original.jpg){fig-alt="Sankey-style flow chart from Reuters showing 2020 CO2 emissions and per-capita emissions by country, led by China, U.S., and India" width="85%"}
+
+**Strengths:**
+
+- The Sankey-style flow conveys the scale of absolute emissions from top emitters in a single visually striking image.
+- Ranking countries by annual territorial emissions is intuitive and matches how the issue is usually reported in the news.
+
+**Weaknesses:**
+
+- The chart implies a single, neutral answer to "who is the biggest polluter," but annual territorial emissions is only one of several defensible accounting choices (cumulative, per-capita, consumption-based), each of which produces a different ranking.
+- Dense flow geometry and rotated labels slow down reading and make precise country-to-country comparison difficult.
+- There is no way for a reader to see how the ranking would change under a different, equally valid metric.
+
+## Design brief
+
+> This redesign targets readers of a general-interest publication such as Reuters who want to know who is most responsible for CO2 emissions. The task is comparing national responsibility across four accounting metrics. Design choices: small multiples separate each metric to avoid conflating different questions; consistent country colors and direct labels let readers track a country across panels without a legend; ranking each panel by value highlights how leaders change; captions name the unit and metric so no measure is mistaken for another.
+
 ## Data import and cleaning
 
 ```{r}
@@ -150,18 +169,24 @@ plot_data |>
 ## Draft redesign
 
 ```{r}
-country_palette <- c(
-  "China" = "#c7512f",
-  "United States" = "#2f6f9f",
-  "India" = "#7a5ea8",
-  "European Union (27)" = "#4d8c57",
-  "EU-27" = "#4d8c57",
-  "European Union" = "#4d8c57",
-  "Russia" = "#8f5d46",
-  "Japan" = "#d08c2f",
-  "Germany" = "#6b6b6b",
-  "United Kingdom" = "#3f7f7a",
-  "Singapore" = "#b64d7a"
+# Colorblind-safe categorical palette (Okabe-Ito, extended with one extra hue
+# for the 9th country) instead of arbitrary hand-picked colors.
+palette_hex <- c(
+  "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+  "#0072B2", "#D55E00", "#CC79A7", "#999999", "#882255"
+)
+country_palette <- setNames(palette_hex[seq_along(comparison_countries)], comparison_countries)
+# Keep EU label aliases mapped to the same color regardless of which label the dataset used.
+country_palette[c("European Union (27)", "EU-27", "European Union")] <- country_palette[[eu_label]]
+
+panel_notes <- tibble(
+  metric = factor(metric_levels, levels = metric_levels),
+  note = c(
+    "Current industrial scale",
+    "Historical responsibility",
+    "Average domestic intensity",
+    "Demand & trade-adjusted"
+  )
 )
 
 country_levels <- rev(comparison_countries)
@@ -180,6 +205,16 @@ small_multiple_chart <- ggplot(
     hjust = -0.08,
     size = 3.1,
     color = "#222222"
+  ) +
+  geom_text(
+    data = panel_notes,
+    aes(x = Inf, y = Inf, label = note),
+    inherit.aes = FALSE,
+    hjust = 1.05,
+    vjust = 1.6,
+    size = 2.9,
+    fontface = "italic",
+    color = "#555555"
   ) +
   facet_wrap(~ metric, scales = "free_x", ncol = 2) +
   scale_fill_manual(values = country_palette, guide = "none") +
@@ -236,7 +271,4 @@ The poster should explain that none of these metrics is a neutral single answer.
 
 ## Next design tasks
 
-- Decide whether to keep the EU aggregate or remove it to avoid mixing countries and regions.
-- Add concise annotations beside each panel.
 - Add a small supporting rank-change chart only if the poster has enough space.
-- Place the original Reuters graphic beside a short critique of the Sankey and rotated-label design.
