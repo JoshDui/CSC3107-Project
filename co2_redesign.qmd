@@ -124,6 +124,12 @@ analysis_year
 
 The selected analysis year is `r analysis_year`, because it is the latest year where all selected comparison countries have complete values for the four required metrics.
 
+**Data notes:**
+
+- `co2` and `cumulative_co2` are in million tonnes in the raw OWID file; they are divided by 1000 in the visualization step below to display gigatonnes (Gt).
+- The Reuters original reports 2020 figures. This redesign uses OWID's current data release (analysis year `r analysis_year`), since that is the latest year with complete values across all four metrics for every comparison country. Rankings are qualitatively similar across these years, but exact values will not match the original article.
+- `European Union (27)` has no `iso_code` in the raw data because it is a policy aggregate, not an ISO-coded country. This is expected and not a data error.
+
 ## Transform for visualization
 
 ```{r}

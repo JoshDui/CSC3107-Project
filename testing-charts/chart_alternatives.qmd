@@ -1,0 +1,153 @@
+---
+title: "CO2 Redesign: Chart Alternatives"
+subtitle: "Testing bump chart and connected dot plot against the current faceted bar chart"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Why test alternatives
+
+The current main chart (`co2_redesign.qmd`) uses a faceted bar chart: one ranked
+bar panel per metric. It is easy to read exact values, but it breaks the thing
+the original Reuters ribbon chart did well — letting a reader watch one
+country's position shift as the metric changes. This page builds two
+alternatives that keep that "story" while fixing the original's real problems
+(uncontrolled flow widths, dense crossings, unreadable rotated labels for small
+countries).
+
+```{r}
+library(tidyverse)
+
+plot_data <- read_csv("../data/cleaned/co2_metric_comparison_long.csv", show_col_types = FALSE)
+
+metric_levels <- c(
+  "Annual territorial CO2",
+  "Cumulative territorial CO2",
+  "Territorial CO2 per capita",
+  "Consumption CO2 per capita"
+)
+
+plot_data <- plot_data |>
+  mutate(metric = factor(metric, levels = metric_levels))
+
+country_palette <- c(
+  "China" = "#E69F00",
+  "United States" = "#56B4E9",
+  "India" = "#009E73",
+  "European Union (27)" = "#F0E442",
+  "Russia" = "#0072B2",
+  "Japan" = "#D55E00",
+  "Germany" = "#CC79A7",
+  "United Kingdom" = "#999999",
+  "Singapore" = "#882255"
+)
+
+# Countries to highlight in color; everyone else fades to gray context lines.
+highlight_countries <- c("China", "United States", "India", "Singapore")
+
+plot_data <- plot_data |>
+  mutate(
+    highlight = country %in% highlight_countries,
+    line_color = if_else(highlight, country, "Other")
+  )
+
+highlight_palette <- c(country_palette[highlight_countries], "Other" = "#cccccc")
+```
+
+## Option 1: Bump chart
+
+Rank (not raw value) on the y-axis, metric on the x-axis, one line per country.
+This is the most direct structural replacement for the original ribbon
+chart's "rank-flow" story.
+
+```{r}
+bump_chart <- ggplot(
+  plot_data,
+  aes(x = metric, y = rank, group = country, color = line_color)
+) +
+  geom_line(aes(linewidth = highlight), lineend = "round") +
+  geom_point(aes(size = highlight)) +
+  geom_text(
+    data = filter(plot_data, metric == first(metric_levels), highlight),
+    aes(label = country),
+    hjust = 1.15, size = 3.2, fontface = "bold"
+  ) +
+  geom_text(
+    data = filter(plot_data, metric == last(metric_levels), highlight),
+    aes(label = country),
+    hjust = -0.15, size = 3.2, fontface = "bold"
+  ) +
+  scale_y_reverse(breaks = 1:9) +
+  scale_color_manual(values = highlight_palette, guide = "none") +
+  scale_linewidth_manual(values = c(`TRUE` = 1.1, `FALSE` = 0.5), guide = "none") +
+  scale_size_manual(values = c(`TRUE` = 3, `FALSE` = 1.5), guide = "none") +
+  labs(
+    title = "Rank shifts depending on how you measure CO2 responsibility",
+    subtitle = "Highlighted: China, United States, India, Singapore. Other countries shown as context.",
+    x = NULL, y = "Rank (1 = highest)"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(10, 60, 10, 60)
+  ) +
+  coord_cartesian(clip = "off")
+
+bump_chart
+ggsave("bump_chart.png", bump_chart, width = 10, height = 6, dpi = 300)
+```
+
+## Option 2: Connected dot plot
+
+Countries as rows, one dot per metric, rank shown as the label inside each
+dot, dots in a row connected by a thin line. Less dramatic than the bump
+chart's crossing lines, but easier to scan per country.
+
+```{r}
+country_order <- plot_data |>
+  filter(metric == "Annual territorial CO2") |>
+  arrange(rank) |>
+  pull(country)
+
+dot_data <- plot_data |>
+  mutate(country = factor(country, levels = rev(country_order)))
+
+connected_dot_plot <- ggplot(dot_data, aes(x = metric, y = country, group = country)) +
+  geom_line(color = "#999999", linewidth = 0.6) +
+  geom_point(aes(fill = country), shape = 21, size = 8, color = "white", stroke = 0.6) +
+  geom_text(aes(label = rank), size = 3, fontface = "bold", color = "#222222") +
+  scale_fill_manual(values = country_palette, guide = "none") +
+  labs(
+    title = "Each country's rank across four CO2 accounting metrics",
+    x = NULL, y = NULL
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  )
+
+connected_dot_plot
+ggsave("connected_dot_plot.png", connected_dot_plot, width = 10, height = 6, dpi = 300)
+```
+
+## Discussion notes for the team
+
+- **Bump chart**: closest structural match to the brief ("translate from
+  perspective to perspective easily") and to what the professor described.
+  With 9 countries, full-color lines get crowded — used highlight + gray
+  context here. Decide as a team whether 4 highlighted countries is the
+  right number, or whether it should track the same comparison set as the
+  main chart.
+- **Connected dot plot**: compact, shows the exact rank number without
+  needing to read position on a y-axis, but loses the "crossing lines = the
+  story" visual impact that sold the original chart's narrative.
+- **Faceted bar chart (existing, not reproduced here)**: still the best
+  option if precise values matter more than rank-flow storytelling — worth
+  keeping as a secondary panel either way, even if the primary chart changes.
