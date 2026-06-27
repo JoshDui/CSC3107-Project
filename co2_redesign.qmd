@@ -234,6 +234,126 @@ The first chart draft is meant to support a narrow poster argument:
 
 The poster should explain that none of these metrics is a neutral single answer. Each one answers a different policy question.
 
+## Alternative Chart Implementations
+
+This section explores other chart types that could improve upon the original Reuters graphic, focusing on rank shifts across different perspectives.
+
+### Slope Chart (Paired)
+
+The paired slope chart simplifies the comparison by breaking it down into two side-by-side panels. It effectively communicates the change in ranking between two metrics at a time.
+
+```{r}
+# Prepare data for paired slope chart
+slope_rank_data <- plot_data |>
+  select(country, metric, rank) |>
+  mutate(
+    metric_short = case_when(
+      metric == "Cumulative territorial CO2" ~ "Cumulative",
+      metric == "Annual territorial CO2" ~ "Annual",
+      metric == "Territorial CO2 per capita" ~ "Per capita",
+      metric == "Consumption CO2 per capita" ~ "Consumption per cap"
+    )
+  )
+
+# Abbreviate long country names for slope chart labels
+slope_rank_data <- slope_rank_data |>
+  mutate(
+    country_short = case_when(
+      country == "European Union (27)" ~ "EU-27",
+      country == "United Kingdom" ~ "UK",
+      TRUE ~ country
+    )
+  )
+
+# Create two paired comparisons 
+pair1 <- slope_rank_data |>
+  filter(metric_short %in% c("Cumulative", "Annual")) |>
+  mutate(
+    panel = "Cumulative \u2192 Annual",
+    x_pos = if_else(metric_short == "Cumulative", 1, 4)
+  )
+
+pair2 <- slope_rank_data |>
+  filter(metric_short %in% c("Annual", "Per capita")) |>
+  mutate(
+    panel = "Annual \u2192 Per capita",
+    x_pos = if_else(metric_short == "Annual", 1, 4)
+  )
+
+slope_plot_data <- bind_rows(pair1, pair2) |>
+  mutate(
+    panel = factor(panel, levels = c("Cumulative \u2192 Annual", "Annual \u2192 Per capita")),
+    label_text = paste0("#", rank, " ", country_short),
+    is_left = x_pos == 1,
+    hjust = if_else(is_left, 1, 0),
+    label_x = if_else(is_left, x_pos - 0.2, x_pos + 0.2)
+  )
+
+# Axis column headers
+axis_labels <- data.frame(
+  panel = factor(
+    c("Cumulative \u2192 Annual", "Cumulative \u2192 Annual", 
+      "Annual \u2192 Per capita", "Annual \u2192 Per capita"),
+    levels = c("Cumulative \u2192 Annual", "Annual \u2192 Per capita")
+  ),
+  x_pos = c(1, 4, 1, 4),
+  y_pos = 0.2,
+  label = c("Cumulative", "Annual", "Annual", "Per capita"),
+  hjust = c(1, 0, 1, 0)
+)
+
+slope_chart <- ggplot(slope_plot_data, aes(y = rank, group = country, color = country)) +
+  geom_line(aes(x = x_pos), linewidth = 1.2) +
+  geom_point(aes(x = x_pos), size = 3) +
+  geom_text(
+    aes(x = label_x, label = label_text, hjust = hjust),
+    size = 3.5,
+    fontface = "bold"
+  ) +
+  geom_text(
+    data = axis_labels,
+    aes(x = x_pos, y = y_pos, label = label, hjust = hjust),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 4,
+    color = "#333333"
+  ) +
+  facet_wrap(~ panel, scales = "free_x") +
+  scale_y_reverse(limits = c(max(slope_plot_data$rank) + 0.5, 0)) +
+  scale_x_continuous(
+    limits = c(-2, 7),
+    expand = c(0, 0)
+  ) +
+  scale_color_manual(values = country_palette, guide = "none") +
+  labs(
+    title = "Slope chart (paired)",
+    subtitle = "Cumulative vs Annual vs Per Capita Emissions",
+    x = NULL, y = NULL
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 10, color = "#444444"),
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    strip.text = element_text(face = "bold", size = 12),
+    panel.spacing = unit(4, "lines"),
+    plot.margin = margin(10, 30, 10, 30)
+  ) +
+  coord_cartesian(clip = "off")
+
+slope_chart
+
+ggsave(
+  filename = file.path(figures_dir, "co2_slope_chart.png"),
+  plot = slope_chart,
+  width = 14,
+  height = 7,
+  dpi = 300
+)
+```
+
 ## Next design tasks
 
 - Decide whether to keep the EU aggregate or remove it to avoid mixing countries and regions.
