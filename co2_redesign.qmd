@@ -354,6 +354,335 @@ ggsave(
 )
 ```
 
+### Alluvial Chart
+
+The alluvial chart answers the design question directly:
+*Who appears most responsible for CO2 emissions under annual, cumulative, per-capita, and
+consumption-based accounting?*
+
+Four metrics run as horizontal rows. Countries flow as ribbons — ribbon width encodes each
+country's proportional share of the nine-country group total. Rank labels are printed inside
+every band wide enough to hold text.
+
+#### Design Brief Draft
+
+This redesign targets readers of the Reuters Graphics article on CO₂ responsibility. The goal is to reveal how the identity of the "biggest polluter" changes entirely depending on the accounting method used — annual output, historical accumulation, or per-person consumption.
+
+Main revisions:
+
+- Alluvial (flow) chart replacing the original Sankey to show proportional shares and rank shifts simultaneously across four metrics on a common 0-100% scale
+- Earthy, desaturated palette drawn from the original's visual tone, avoiding politically charged colour associations
+- Direct bar labels (short country names) to reduce legend switching
+- Companion ranking table to make precise rank positions legible at a glance
+
+```{r}
+library(ggalluvial)
+```
+
+```{r}
+# --- 1. Shared data setup -----------------------------------------------------
+
+all_metrics <- c(
+  "Annual territorial CO2",
+  "Cumulative territorial CO2",
+  "Territorial CO2 per capita",
+  "Consumption CO2 per capita"
+)
+
+# Two-line axis labels used on the alluvial y-axis (after coord_flip)
+metric_display <- c(
+  "Annual territorial CO2"     = "Annual\nterritorial CO2",
+  "Cumulative territorial CO2" = "Cumulative\nterritorial CO2",
+  "Territorial CO2 per capita" = "Territorial CO2\nper capita",
+  "Consumption CO2 per capita" = "Consumption CO2\nper capita"
+)
+
+# Design-question text shown to the left of each bar row
+metric_questions <- c(
+  "Annual territorial CO2"     = "Who is currently emitting the most?",
+  "Cumulative territorial CO2" = "Who has polluted most since industrialisation?",
+  "Territorial CO2 per capita" = "Where are the largest emissions per person?",
+  "Consumption CO2 per capita" = "Who bears most responsibility via consumption?"
+)
+
+alluvial_data <- plot_data |>
+  filter(as.character(metric) %in% all_metrics) |>
+  group_by(metric) |>
+  mutate(share = value / sum(value) * 100) |>
+  ungroup() |>
+  mutate(
+    country_short = case_when(
+      country %in% c("European Union (27)", "EU-27", "European Union") ~ "EU-27",
+      country == "United Kingdom" ~ "UK",
+      country == "United States"  ~ "USA",
+      TRUE                        ~ country
+    ),
+    rank_label = paste0("#", rank, " ", country_short),
+    # Reverse factor so Annual appears at the TOP after coord_flip()
+    metric = factor(metric, levels = rev(all_metrics))
+  ) |>
+  mutate(country = factor(country, levels = comparison_countries))
+```
+
+```{r}
+# --- 3. Alluvial chart (vertical, no coord_flip) ------------------------------
+# Root fix for long legend labels: map stratum = country_short directly, so
+# after_stat(stratum) on bars AND the legend keys both show short names
+# ("USA", "EU-27", "UK") with zero extra label-override plumbing.
+# A palette keyed on short names (palette_short) replaces country_palette here.
+
+palette_short <- c(
+  "China"     = country_palette[["China"]],
+  "USA"       = country_palette[["United States"]],
+  "India"     = country_palette[["India"]],
+  "EU-27"     = country_palette[[
+                  intersect(c("European Union (27)", "EU-27", "European Union"),
+                            names(country_palette))[1] ]],
+  "Russia"    = country_palette[["Russia"]],
+  "Japan"     = country_palette[["Japan"]],
+  "Germany"   = country_palette[["Germany"]],
+  "UK"        = country_palette[["United Kingdom"]],
+  "Singapore" = country_palette[["Singapore"]]
+)
+
+# Refactor country_short to match palette_short key order
+alluvial_plot_data <- alluvial_data |>
+  mutate(country_short = factor(country_short, levels = names(palette_short)))
+
+alluvial_chart <- ggplot(
+  alluvial_plot_data,
+  aes(
+    x        = metric,
+    y        = share,
+    alluvium = country_short,
+    stratum  = country_short,
+    fill     = country_short
+  )
+) +
+
+  geom_alluvium(
+    alpha      = 0.75,
+    curve_type = "sigmoid",
+    width      = 0.6
+  ) +
+
+  geom_stratum(
+    width     = 0.6,
+    fill      = NA,
+    colour    = "white",
+    linewidth = 0.8
+  ) +
+
+  # Short names at stratum centroids; suppressed on bands < 8 % share
+  geom_text(
+    stat     = "stratum",
+    aes(label = after_stat(stratum)),
+    size     = 3.1,
+    colour   = "white",
+    fontface = "bold",
+    min.y    = 8
+  ) +
+
+  scale_fill_manual(
+    values = palette_short,
+    guide  = guide_legend(
+      title          = "Country",
+      ncol           = 1,
+      keywidth       = unit(0.7, "lines"),
+      keyheight      = unit(0.7, "lines"),
+      title.position = "top"
+    )
+  ) +
+
+  scale_x_discrete(
+    limits = all_metrics,
+    labels = metric_display
+  ) +
+
+  scale_y_continuous(
+    breaks = seq(0, 100, 25),
+    labels = function(y) paste0(y, "%"),
+    expand = expansion(mult = c(0, 0)),
+    limits = c(0, 100)
+  ) +
+
+  labs(
+    title    = "The biggest polluter changes with the metric",
+    subtitle = paste0(
+      "Share of nine-country total, ", analysis_year, ". ",
+      "Ribbon width encodes each country’s proportional contribution."
+    ),
+    x       = NULL,
+    y       = "Share of nine-country group total (%)",
+    caption = "Data: Our World in Data CO₂ and Greenhouse Gas Emissions dataset."
+  ) +
+
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title         = element_text(face = "bold", size = 14,
+                                      margin = margin(b = 4)),
+    plot.subtitle      = element_text(size = 9.5, colour = "#444444",
+                                      lineheight = 1.3,
+                                      margin = margin(b = 10)),
+    plot.caption       = element_text(size = 8, colour = "#666666",
+                                      hjust = 0),
+    axis.text.x        = element_text(size = 10, colour = "#222222",
+                                      face = "bold", lineheight = 1.3,
+                                      margin = margin(t = 6)),
+    axis.text.y        = element_text(size = 9, colour = "#666666"),
+    axis.title.y       = element_text(size = 9, colour = "#555555",
+                                      margin = margin(r = 6)),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.y = element_line(colour = "#e8e8e8", linewidth = 0.4),
+    legend.position    = "right",
+    legend.title       = element_text(face = "bold", size = 9),
+    legend.text        = element_text(size = 8.5),
+    legend.key.size    = unit(0.7, "lines"),
+    legend.margin      = margin(l = 2),
+    legend.box.spacing = unit(3, "pt"),
+    plot.margin        = margin(t = 12, r = 8, b = 12, l = 12),
+    plot.background    = element_rect(fill = "white", colour = NA)
+  )
+
+alluvial_chart
+
+ggsave(
+  filename = file.path(figures_dir, "co2_alluvial_chart.png"),
+  plot     = alluvial_chart,
+  width    = 14,
+  height   = 9,
+  dpi      = 300
+)
+```
+
+#### Ranking Table
+
+A separate companion chart lists every country in rank order for each metric, coloured by the
+same palette as the alluvial ribbons. This lets readers look up precise standings without
+relying on ribbon width.
+
+```{r}
+# --- 4. Build ranking table data ----------------------------------------------
+# Four facets (one per metric) each containing 9 rows (#1 → #9).
+# Facet order matches the alluvial chart top-down:
+#   Annual → Cumulative → Territorial per capita → Consumption per capita.
+# The metric factor must be set to all_metrics (not rev()) so facet_wrap
+# displays them left-to-right in the same sequence as the alluvial rows
+# read top-to-bottom.
+
+ranking_table <- alluvial_data |>
+  select(metric, rank, country, country_short, share) |>
+  distinct() |>
+  # Re-apply factor in forward all_metrics order for correct facet sequence
+  mutate(metric = factor(as.character(metric), levels = all_metrics)) |>
+  arrange(metric, rank) |>
+  mutate(
+    rank_badge  = paste0("#", rank),
+    share_label = paste0(round(share, 1), "%"),
+    # y position: rank 1 at top (y = -1), rank 9 at bottom (y = -9)
+    y_pos       = -rank,
+    shade       = (rank %% 2 == 0)
+  )
+```
+
+```{r}
+# --- 5. Ranking chart (faceted) -----------------------------------------------
+# Four side-by-side panels, one per metric, in the same left-to-right order
+# as the alluvial chart reads top-to-bottom (Annual first, Consumption last).
+# Three text columns per row: rank badge (grey), country name (colour-coded
+# matching the alluvial palette), share % (light grey).
+# geom_tile provides alternating row shading within each panel.
+
+ranking_chart <- ggplot(ranking_table, aes(y = y_pos)) +
+
+  # Alternating row shading
+  geom_tile(
+    data   = ranking_table |> filter(shade),
+    aes(x = 0.5, y = y_pos),
+    width  = 1,
+    height = 0.9,
+    fill   = "#f4f4f4",
+    colour = NA
+  ) +
+
+  # Rank badge — left column
+  geom_text(
+    aes(x = 0.05, label = rank_badge),
+    hjust    = 0,
+    size     = 3.5,
+    colour   = "#aaaaaa",
+    fontface = "plain"
+  ) +
+
+  # Country name — middle column, colour-coded with the alluvial palette
+  geom_text(
+    aes(x = 0.22, label = country_short, colour = country),
+    hjust    = 0,
+    size     = 3.7,
+    fontface = "bold"
+  ) +
+
+  # Share % — right column
+  geom_text(
+    aes(x = 0.95, label = share_label),
+    hjust    = 1,
+    size     = 3.3,
+    colour   = "#bbbbbb"
+  ) +
+
+  scale_colour_manual(values = country_palette, guide = "none") +
+  scale_x_continuous(limits = c(0, 1), expand = expansion(mult = 0)) +
+  scale_y_continuous(expand = expansion(add = c(0.5, 0.5))) +
+
+  # ncol = 4 places all four panels side by side; as_labeller maps factor
+  # levels to the two-line short display strings used in the alluvial chart.
+  facet_wrap(
+    ~ metric,
+    ncol     = 4,
+    labeller = as_labeller(metric_display)
+  ) +
+
+  labs(
+    title    = "Country rankings by CO2 accounting method",
+    subtitle = paste0(
+      analysis_year,
+      ": rank #1 = largest share of the nine-country group total.",
+      " Panel order matches the alluvial chart."
+    ),
+    caption = "Data: Our World in Data CO2 and GHG Emissions.",
+    x = NULL,
+    y = NULL
+  ) +
+
+  theme_void(base_size = 12) +
+  theme(
+    plot.title        = element_text(face = "bold", size = 14,
+                                     margin = margin(b = 4)),
+    plot.subtitle     = element_text(size = 9.5, colour = "#444444",
+                                     margin = margin(b = 10)),
+    plot.caption      = element_text(size = 8, colour = "#666666",
+                                     margin = margin(t = 8)),
+    strip.text        = element_text(face = "bold", size = 10.5,
+                                     lineheight = 1.2,
+                                     margin = margin(b = 6)),
+    panel.spacing.x   = unit(1.4, "lines"),
+    plot.margin       = margin(t = 12, r = 20, b = 12, l = 20),
+    plot.background   = element_rect(fill = "white", colour = NA)
+  )
+
+ranking_chart
+
+ggsave(
+  filename = file.path(figures_dir, "co2_ranking_chart.png"),
+  plot     = ranking_chart,
+  width    = 12,
+  height   = 6,
+  dpi      = 300
+)
+```
+
+
 ## Next design tasks
 
 - Decide whether to keep the EU aggregate or remove it to avoid mixing countries and regions.
